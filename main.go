@@ -50,15 +50,16 @@ func createConfigsModelFromEnvs() ConfigsModel {
 		Password:      os.Getenv("password"),
 		AppPassword:   os.Getenv("app_password"),
 
-		AppID:           os.Getenv("app_id"),
-		BundleID:        os.Getenv("bundle_id"),
-		SubmitForReview: os.Getenv("submit_for_review"),
-		SkipMetadata:    os.Getenv("skip_metadata"),
-		SkipScreenshots: os.Getenv("skip_screenshots"),
-		TeamID:          os.Getenv("team_id"),
-		TeamName:        os.Getenv("team_name"),
-		Platform:        os.Getenv("platform"),
-		Options:         os.Getenv("options"),
+		AppID:              os.Getenv("app_id"),
+		BundleID:           os.Getenv("bundle_id"),
+		SkipSubmission:     os.Getenv("skip_submission"),
+		Changelog:          os.Getenv("changelog"),
+		DistributeExternal: os.Getenv("distribute_external"),
+		Groups:             os.Getenv("groups"),
+		TeamID:             os.Getenv("team_id"),
+		TeamName:           os.Getenv("team_name"),
+		Platform:           os.Getenv("platform"),
+		Options:            os.Getenv("options"),
 
 		GemfilePath:     os.Getenv("gemfile_path"),
 		FastlaneVersion: os.Getenv("fastlane_version"),
@@ -77,9 +78,12 @@ func (configs ConfigsModel) print() {
 
 	log.Printf("- AppID: %s", configs.AppID)
 	log.Printf("- BundleID: %s", configs.BundleID)
-	log.Printf("- SubmitForReview: %s", configs.SubmitForReview)
-	log.Printf("- SkipMetadata: %s", configs.SkipMetadata)
-	log.Printf("- SkipScreenshots: %s", configs.SkipScreenshots)
+
+	log.Printf("- SkipSubmission: %s", configs.SkipSubmission)
+	log.Printf("- Changelog: %s", configs.Changelog)
+	log.Printf("- DistributeExternal: %s", configs.DistributeExternal)
+	log.Printf("- Groups: %s", configs.Groups)
+
 	log.Printf("- TeamID: %s", configs.TeamID)
 	log.Printf("- TeamName: %s", configs.TeamName)
 	log.Printf("- Platform: %s", configs.Platform)
@@ -106,8 +110,8 @@ func (configs ConfigsModel) validate() error {
 		}
 	}
 
-	if err := input.ValidateIfNotEmpty(configs.ItunesconUser); err != nil {
-		return fmt.Errorf("ItunesconUser %s", err)
+	if configs.AppID == "" && configs.BundleID == "" {
+		return errors.New("no AppID or BundleID parameter specified")
 	}
 
 	if err := input.ValidateIfNotEmpty(configs.Password); err != nil {
@@ -118,16 +122,20 @@ func (configs ConfigsModel) validate() error {
 		return errors.New("no AppID or BundleID parameter specified")
 	}
 
-	if err := input.ValidateWithOptions(configs.SubmitForReview, "yes", "no"); err != nil {
-		return fmt.Errorf("SubmitForReview, %s", err)
+	if err := input.ValidateWithOptions(configs.SkipSubmission, "yes", "no"); err != nil {
+		return fmt.Errorf("SkipSubmission, %s", err)
 	}
 
-	if err := input.ValidateWithOptions(configs.SkipMetadata, "yes", "no"); err != nil {
-		return fmt.Errorf("SkipMetadata, %s", err)
+	if err := input.ValidateIfNotEmpty(configs.Changelog); err != nil {
+		return fmt.Errorf("Groups %s", err)
 	}
 
-	if err := input.ValidateWithOptions(configs.SkipScreenshots, "yes", "no"); err != nil {
-		return fmt.Errorf("SkipScreenshots, %s", err)
+	if err := input.ValidateWithOptions(configs.DistributeExternal, "yes", "no"); err != nil {
+		return fmt.Errorf("DistributeExternal, %s", err)
+	}
+
+	if err := input.ValidateIfNotEmpty(configs.Groups); err != nil {
+		return fmt.Errorf("Groups %s", err)
 	}
 
 	if err := input.ValidateWithOptions(configs.Platform, "ios", "osx", "appletvos"); err != nil {
@@ -355,7 +363,7 @@ This means that when the API changes
 	}
 
 	envs := []string{
-		fmt.Sprintf("DELIVER_PASSWORD=%s", configs.Password),
+		fmt.Sprintf("FASTLANE_PASSWORD=%s", configs.Password),
 	}
 
 	if configs.AppPassword != "" {
@@ -363,7 +371,7 @@ This means that when the API changes
 	}
 
 	args := []string{
-		"deliver",
+		"pilot distribute",
 		"--username", configs.ItunesconUser,
 	}
 
@@ -395,18 +403,20 @@ This means that when the API changes
 		args = append(args, "--pkg", configs.PkgPath)
 	}
 
-	if configs.SkipScreenshots == "yes" {
-		args = append(args, "--skip_screenshots")
+	if configs.SkipSubmission == "yes" {
+		args = append(args, "--skip_submission")
 	}
 
-	if configs.SkipMetadata == "yes" {
-		args = append(args, "--skip_metadata")
+	if configs.Changelog != "" {
+		args = append(args, "--changelog", configs.Changelog)
 	}
 
-	args = append(args, "--force")
+	if configs.DistributeExternal == "yes" {
+		args = append(args, "--distribute_external")
+	}
 
-	if configs.SubmitForReview == "yes" {
-		args = append(args, "--submit_for_review")
+	if configs.Groups != "" {
+		args = append(args, "--groups", configs.Groups)
 	}
 
 	args = append(args, "--platform", configs.Platform)

@@ -16,6 +16,7 @@ import (
 	"github.com/bitrise-io/go-utils/pathutil"
 	"github.com/bitrise-io/go-utils/retry"
 	"github.com/bitrise-tools/go-steputils/input"
+	"github.com/kballard/go-shellquote"
 )
 
 // ConfigsModel ...
@@ -27,15 +28,17 @@ type ConfigsModel struct {
 	Password      string
 	AppPassword   string
 
-	AppID           string
-	BundleID        string
-	SubmitForReview string
-	SkipMetadata    string
-	SkipScreenshots string
-	TeamID          string
-	TeamName        string
-	Platform        string
-	Options         string
+	AppID              string
+	BundleID           string
+	PilotAction        string
+	SkipSubmission     string
+	Changelog          string
+	DistributeExternal string
+	Groups             string
+	TeamID             string
+	TeamName           string
+	Platform           string
+	Options            string
 
 	GemfilePath     string
 	FastlaneVersion string
@@ -52,6 +55,7 @@ func createConfigsModelFromEnvs() ConfigsModel {
 
 		AppID:              os.Getenv("app_id"),
 		BundleID:           os.Getenv("bundle_id"),
+		PilotAction:        os.Getenv("pilot_action"),
 		SkipSubmission:     os.Getenv("skip_submission"),
 		Changelog:          os.Getenv("changelog"),
 		DistributeExternal: os.Getenv("distribute_external"),
@@ -71,6 +75,7 @@ func (configs ConfigsModel) print() {
 
 	log.Printf("- IpaPath: %s", configs.IpaPath)
 	log.Printf("- PkgPath: %s", configs.PkgPath)
+	log.Printf("- PilotAction: %s", configs.PilotAction)
 
 	log.Printf("- ItunesconUser: %s", configs.ItunesconUser)
 	log.Printf("- Password: %s", input.SecureInput(configs.Password))
@@ -94,10 +99,6 @@ func (configs ConfigsModel) print() {
 }
 
 func (configs ConfigsModel) validate() error {
-	if configs.IpaPath == "" && configs.PkgPath == "" {
-		return errors.New("no IpaPath nor PkgPath parameter specified")
-	}
-
 	if configs.IpaPath != "" {
 		if err := input.ValidateIfPathExists(configs.IpaPath); err != nil {
 			return fmt.Errorf("IpaPath %s", err)
@@ -108,6 +109,10 @@ func (configs ConfigsModel) validate() error {
 		if err := input.ValidateIfPathExists(configs.PkgPath); err != nil {
 			return fmt.Errorf("PkgPath %s", err)
 		}
+	}
+
+	if err := input.ValidateWithOptions(configs.PilotAction, "upload", "distribute"); err != nil {
+		return fmt.Errorf("PilotAction, %s", err)
 	}
 
 	if configs.AppID == "" && configs.BundleID == "" {
@@ -127,7 +132,7 @@ func (configs ConfigsModel) validate() error {
 	}
 
 	if err := input.ValidateIfNotEmpty(configs.Changelog); err != nil {
-		return fmt.Errorf("Groups %s", err)
+		return fmt.Errorf("Changelog %s", err)
 	}
 
 	if err := input.ValidateWithOptions(configs.DistributeExternal, "yes", "no"); err != nil {
@@ -371,12 +376,13 @@ This means that when the API changes
 	}
 
 	args := []string{
-		"pilot distribute",
+		"pilot",
+		fmt.Sprintf("%s", configs.PilotAction),
 		"--username", configs.ItunesconUser,
 	}
 
 	if configs.AppID != "" {
-		args = append(args, "--app", configs.AppID)
+		args = append(args, "--app_identifier", configs.AppID)
 
 		//warn user if BundleID is also set
 		if configs.BundleID != "" {
@@ -419,7 +425,7 @@ This means that when the API changes
 		args = append(args, "--groups", configs.Groups)
 	}
 
-	args = append(args, "--platform", configs.Platform)
+	args = append(args, "--app_platform", configs.Platform)
 
 	args = append(args, options...)
 
